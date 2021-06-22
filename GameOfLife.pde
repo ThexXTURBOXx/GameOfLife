@@ -2,7 +2,7 @@ public static final int SCALE = 4;
 public static final int SIZE_X = 200;
 public static final int SIZE_Y = 200;
 
-boolean[] field;
+int[] field;
 boolean playing = false;
 boolean step = false;
 boolean stop = false;
@@ -12,7 +12,7 @@ void settings() {
 }
 
 void setup() {
-  field = new boolean[SIZE_X * SIZE_Y];
+  field = new int[ceil((SIZE_X * SIZE_Y) / 32f)];
 }
 
 void draw() {
@@ -23,7 +23,8 @@ void draw() {
   background(255);
   for (int x = 0; x < SIZE_X; x++) {
     for (int y = 0; y < SIZE_Y; y++) {
-      int col = getColor(field[getIndex(x, y)]);
+      int index = getIndex(x, y);
+      int col = getColor(getCell(index));
       noStroke();
       fill(col);
       rect(x * SCALE, y * SCALE, SCALE, SCALE);
@@ -32,32 +33,58 @@ void draw() {
 }
 
 public void nextGeneration() {
-  boolean[] newField = new boolean[SIZE_X * SIZE_Y];
+  int[] newField = new int[ceil((SIZE_X * SIZE_Y) / 32f)];
   for (int x = 0; x < SIZE_X; x++) {
     for (int y = 0; y < SIZE_Y; y++) {
       int index = getIndex(x, y);
       int living = getLivingNeighbours(x, y);
-      boolean newState = false;
-      if (field[index]) {
+      if (getCell(index)) {
         //Alive
         if (living < 2 || living > 3) {
-          //Staying alive
-          newState = false;
+          //Over-/Underpopulation
+          removeCell(newField, index);
         } else {
-        //Over-/Underpopulation
-        newState = true;
+          //Staying alive
+          setCell(newField, index);
         }
       } else {
         //Dead
         if (living == 3) {
           //Reincarnate
-          newState = true;
+          setCell(newField, index);
         }
       }
-      newField[index] = newState;
     }
   }
   field = newField;
+}
+
+private void setCell(int index) {
+  setCell(field, index);
+}
+
+private void setCell(int[] arr, int index) {
+  arr[index / 32] |= 1 << (index % 32);
+}
+
+private void removeCell(int index) {
+  removeCell(field, index);
+}
+
+private void removeCell(int[] arr, int index) {
+  arr[index / 32] &= ~(1 << (index % 32));
+}
+
+private boolean getCell(int index) {
+  return getCell(field, index);
+}
+
+private boolean getCell(int[] arr, int index) {
+  return ((arr[index / 32] >> (index % 32)) & 1) != 0;
+}
+
+private int getIndex(int x, int y) {
+    return x + y * SIZE_X;
 }
 
 private int getColor(boolean alive) {
@@ -79,7 +106,11 @@ void onMouseEvent() {
   if (mouseX < 0 || mouseX >= width || mouseY < 0 || mouseY >= height)
     return;
   int index = getIndex(mouseX / SCALE, mouseY / SCALE);
-  field[index] = mouseButton == 37;
+  if (mouseButton == 37) {
+    setCell(index);
+  } else {
+    removeCell(index);
+  }
 }
 
 void keyPressed() {
@@ -95,7 +126,7 @@ void keyPressed() {
     for (int x = 0; x < SIZE_X; x++) {
       for (int y = 0; y < SIZE_Y; y++) {
         int index = getIndex(x, y);
-        if (field[index])
+        if (getCell(index))
           output.println(index);
       }
     }
@@ -114,10 +145,10 @@ void keyPressed() {
         println("Expected dimensions " + dimX + "x" + dimY + ", got " + SIZE_X + "x" + SIZE_Y + ". Aborting load...");
         return;
       }
-      boolean[] newField = new boolean[dimX * dimY];
+      int[] newField = new int[ceil((dimX * dimY) / 32f)];
       String line = null;
       while ((line = input.readLine()) != null) {
-        newField[Integer.parseInt(line)] = true;
+        setCell(newField, Integer.parseInt(line));
       }
       field = newField;
     } catch (IOException e) {
@@ -127,22 +158,19 @@ void keyPressed() {
   }
 }
 
-int getIndex(int x, int y) {
-  return x + y * SIZE_X;
-}
-
 int getLivingNeighbours(int x, int y) {
-  int sum = 0;
+  int living = 0;
   for (int xOff = -1; xOff <= 1; xOff++) {
     for (int yOff = -1; yOff <= 1; yOff++) {
       if ((xOff == 0 && yOff == 0)
-       || x + xOff < 0 || x + xOff >= SIZE_X
-       || y + yOff < 0 || y + yOff >= SIZE_Y)
-       continue;
-      if (field[getIndex(x + xOff, y + yOff)]) {
-        sum++;
+        || x + xOff < 0 || x + xOff >= SIZE_X
+        || y + yOff < 0 || y + yOff >= SIZE_Y)
+        continue;
+      int index = getIndex(x + xOff, y + yOff);
+      if (getCell(index)) {
+        living++;
       }
     }
   }
-  return sum;
+  return living;
 }
